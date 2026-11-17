@@ -1,0 +1,170 @@
+﻿@page "/books"
+@inject LibraryService Library
+@rendermode InteractiveServer
+
+<PageTitle>Books</PageTitle>
+<h1>Book Management</h1>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="alert alert-info">@_message</div>
+}
+
+<h3>@(_editing is null ? "Add Book" : $"Edit Book #{_editing.Id}")</h3>
+<EditForm Model="_model" OnValidSubmit="Save">
+    <div class="mb-2"><label>Title</label><InputText @bind-Value="_model.Title" class="form-control" /></div>
+    <div class="mb-2"><label>Author</label><InputText @bind-Value="_model.Author" class="form-control" /></div>
+    <div class="mb-2"><label>ISBN</label><InputText @bind-Value="_model.ISBN" class="form-control" /></div>
+    <button class="btn btn-primary" type="submit">@(_editing is null ? "Add" : "Save")</button>
+    @if (_editing is not null)
+    {
+        <button class="btn btn-secondary" type="button" @onclick="CancelEdit">Cancel</button>
+    }
+</EditForm>
+
+<hr />
+<h2>Borrow / Return</h2>
+<div class="row">
+    <div class="col">
+        <h3>Borrow</h3>
+        <div class="mb-2">
+            <label>Book</label>
+            <select class="form-select" @bind="_borrowBookId">
+                <option value="0">-- select --</option>
+                @foreach (var b in Library.Books.OrderBy(x => x.Id))
+                {
+                    <option value="@b.Id">@b.Id — @b.Title</option>
+                }
+            </select>
+        </div>
+        <div class="mb-2">
+            <label>User</label>
+            <select class="form-select" @bind="_borrowUserId">
+                <option value="0">-- select --</option>
+                @foreach (var u in Library.Users.OrderBy(x => x.Id))
+                {
+                    <option value="@u.Id">@u.Id — @u.Name</option>
+                }
+            </select>
+        </div>
+        <button class="btn btn-primary" @onclick="Borrow">Borrow</button>
+    </div>
+    <div class="col">
+        <h3>Borrowed</h3>
+        @if (!Library.BorrowedBooks.Any())
+        {
+            <p><em>Nobody has any books.</em></p>
+        }
+        else
+        {
+            @foreach (var kv in Library.BorrowedBooks.OrderBy(k => k.Key))
+            {
+                var user = Library.Users.FirstOrDefault(u => u.Id == kv.Key);
+                <h4>@user?.Name (Id @kv.Key)</h4>
+                <ul>
+                    @for (int i = 0; i < kv.Value.Count; i++)
+                    {
+                        var idx = i;
+                        var book = kv.Value[i];
+                        <li>
+                            @book.Title — @book.Author
+                            <button class="btn btn-sm btn-success" @onclick="() => Return(kv.Key, idx)">Return</button>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    </div>
+</div>
+
+<hr />
+<h2>Catalog</h2>
+@if (!Library.Books.Any())
+{
+    <p><em>No books.</em></p>
+}
+else
+{
+    <div style="max-height: 400px; overflow-y: auto;">
+        <table class="table">
+            <thead><tr><th>Id</th><th>Title</th><th>Author</th><th>ISBN</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var b in Library.Books.OrderBy(x => x.Id))
+                {
+                    <tr>
+                        <td>@b.Id</td>
+                        <td>@b.Title</td>
+                        <td>@b.Author</td>
+                        <td>@b.ISBN</td>
+                        <td>
+                            <button class="btn btn-sm btn-secondary" @onclick="() => StartEdit(b)">Edit</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => Delete(b.Id)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private Book _model = new();
+    private Book? _editing;
+    private string? _message;
+    private int _borrowBookId;
+    private int _borrowUserId;
+
+    private void StartEdit(Book b)
+    {
+        _editing = b;
+        _model = new Book { Id = b.Id, Title = b.Title, Author = b.Author, ISBN = b.ISBN };
+        _message = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = null;
+        _model = new Book();
+    }
+
+    private void Save()
+    {
+        if (_editing is null)
+        {
+            Library.AddBook(_model);
+            _message = "Book added.";
+        }
+        else
+        {
+            Library.EditBook(_editing.Id, _model.Title, _model.Author, _model.ISBN);
+            _message = $"Book #{_editing.Id} updated.";
+        }
+        _model = new Book();
+        _editing = null;
+    }
+
+    private void Delete(int id)
+    {
+        Library.DeleteBook(id);
+        _message = $"Book #{id} deleted.";
+    }
+
+    private void Borrow()
+    {
+        if (_borrowBookId == 0 || _borrowUserId == 0)
+        {
+            _message = "Select a book and a user.";
+            return;
+        }
+        var ok = Library.BorrowBook(_borrowBookId, _borrowUserId);
+        _message = ok ? "Borrowed." : "Borrow failed (book/user not found).";
+        _borrowBookId = 0;
+        _borrowUserId = 0;
+    }
+
+    private void Return(int userId, int index)
+    {
+        var ok = Library.ReturnBook(userId, index);
+        _message = ok ? "Returned." : "Return failed.";
+    }
+}

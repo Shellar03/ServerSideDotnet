@@ -1,0 +1,92 @@
+﻿@page "/users"
+@inject LibraryService Library
+@rendermode InteractiveServer
+
+<PageTitle>Users</PageTitle>
+<h1>User Management</h1>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="alert alert-info">@_message</div>
+}
+
+<h3>@(_editing is null ? "Add User" : $"Edit User #{_editing.Id}")</h3>
+<EditForm Model="_model" OnValidSubmit="Save">
+    <div class="mb-2"><label>Name</label><InputText @bind-Value="_model.Name" class="form-control" /></div>
+    <div class="mb-2"><label>Email</label><InputText @bind-Value="_model.Email" class="form-control" /></div>
+    <button class="btn btn-primary" type="submit">@(_editing is null ? "Add" : "Save")</button>
+    @if (_editing is not null)
+    {
+        <button class="btn btn-secondary" type="button" @onclick="CancelEdit">Cancel</button>
+    }
+</EditForm>
+
+<hr />
+<h2>Users</h2>
+@if (!Library.Users.Any())
+{
+    <p><em>No users.</em></p>
+}
+else
+{
+    <div style="max-height: 400px; overflow-y: auto;">
+        <table class="table">
+            <thead><tr><th>Id</th><th>Name</th><th>Email</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var u in Library.Users.OrderBy(x => x.Id))
+                {
+                    <tr>
+                        <td>@u.Id</td>
+                        <td>@u.Name</td>
+                        <td>@u.Email</td>
+                        <td>
+                            <button class="btn btn-sm btn-secondary" @onclick="() => StartEdit(u)">Edit</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => Delete(u.Id)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private User _model = new();
+    private User? _editing;
+    private string? _message;
+
+    private void StartEdit(User u)
+    {
+        _editing = u;
+        _model = new User { Id = u.Id, Name = u.Name, Email = u.Email };
+        _message = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = null;
+        _model = new User();
+    }
+
+    private void Save()
+    {
+        if (_editing is null)
+        {
+            Library.AddUser(_model);
+            _message = "User added.";
+        }
+        else
+        {
+            Library.EditUser(_editing.Id, _model.Name, _model.Email);
+            _message = $"User #{_editing.Id} updated.";
+        }
+        _model = new User();
+        _editing = null;
+    }
+
+    private void Delete(int id)
+    {
+        Library.DeleteUser(id);
+        _message = $"User #{id} deleted.";
+    }
+}
